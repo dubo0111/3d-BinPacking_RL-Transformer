@@ -51,7 +51,7 @@ class PolicyNetwork(nn.Module):
             dim_feedforward=dim_feedforward, dropout=dropout
         )
 
-    def act(self, original_container_state, unpacked_box_state, deterministic_selection=False):
+    def forward(self, original_container_state, unpacked_box_state, deterministic_selection=False):
         """
         Generates actions for environment interaction (rollout or testing).
         Determines chosen actions and their log probabilities.
@@ -100,7 +100,7 @@ class PolicyNetwork(nn.Module):
 
         return (ij_global[0][chosen_pos_idx], chosen_box_idx, chosen_orient_idx), \
                (log_prob_chosen_pos, log_prob_chosen_box, log_prob_chosen_orient), \
-                (position_probs_all, box_selection_probs_all, orientation_probs_all)
+                (position_probs_all[:, chosen_pos_idx], box_selection_probs_all[:, chosen_box_idx], orientation_probs_all[:, chosen_orient_idx])
 
 
     def evaluate_actions(self, log_prob_chosen_pos, log_prob_chosen_box, log_prob_chosen_orient, position_probs_all, box_selection_probs_all, orientation_probs_all):

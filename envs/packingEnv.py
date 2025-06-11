@@ -2,10 +2,12 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import copy
+import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import imageio # For GIF
 from io import BytesIO # To save plot to buffer
+matplotlib.use('Agg')
 
 class PackingEnv(gym.Env):
     metadata = {'render_modes': ['human', 'ansi', 'rgb_array'], 'render_fps': 4}
@@ -178,10 +180,9 @@ class PackingEnv(gym.Env):
         self.steps_taken = 0
         self.frames_for_gif.clear()
 
-        if self.render_mode == "human":
-            self._setup_render_figures() # Prepare figures for potential live updates or final display
-            if self.render_mode == "human" and self.initial_boxes_dims: # Capture initial empty state for GIF
-                 self.frames_for_gif.append(self.render(mode='rgb_array'))
+        #if self.render_mode == "human":
+        if self.initial_boxes_dims: # Capture initial empty state for GIF
+            self.frames_for_gif.append(self.render(mode='rgb_array'))
 
 
         return self._get_obs(), self._get_info()
@@ -233,7 +234,7 @@ class PackingEnv(gym.Env):
         else:
             reward -= np.float32(10e6) # Invalid placement
 
-        if self.render_mode == "human" and box_successfully_placed:
+        if box_successfully_placed:
             self.frames_for_gif.append(self.render(mode='rgb_array'))
 
         truncated = self.steps_taken >= self.max_episode_steps
@@ -260,13 +261,6 @@ class PackingEnv(gym.Env):
             s += row_str + "\n"
         s += "---\n"
         return s
-
-    def _setup_render_figures(self):
-        # For final display if plt.show() is called
-        if self._fig_render is None and (self.render_mode == 'human' or self.render_mode == 'rgb_array'):
-            # This figure won't be shown live typically, but used for rgb_array and final show.
-            # If you want truly live updating plots, it's more complex with matplotlib's event loop.
-            pass # We will create figures on the fly for rgb_array to avoid state issues.
 
     def _plot_3d_state(self, fig, ax, boxes_info, container_dims, title="3D Packing State"):
         ax.clear()
@@ -327,10 +321,17 @@ class PackingEnv(gym.Env):
 
             # Method 1: Using buffer_rgba (often more reliable, gives uint8)
             try:
+                #temp_fig.canvas.draw()
+                #width, height = temp_fig.canvas.get_width_height()  # Use actual canvas dimensions
+                #image_rgba_uint8 = np.frombuffer(temp_fig.canvas.buffer_rgba(), dtype=np.uint8).reshape((height, width, 4))
+                #image_rgb = image_rgba_uint8[:, :, :3].copy() # Ensure it's RGB and a copy
                 temp_fig.canvas.draw()
                 width, height = temp_fig.canvas.get_width_height()
-                image_rgba_uint8 = np.frombuffer(temp_fig.canvas.buffer_rgba(), dtype=np.uint8).reshape((height, width, 4))
-                image_rgb = image_rgba_uint8[:, :, :3].copy() # Ensure it's RGB and a copy
+                image_rgba = np.frombuffer(temp_fig.canvas.buffer_rgba(), dtype=np.uint8)
+                image_rgba = image_rgba.reshape((height, width, 4))  # Ensure shape matches
+                image_rgb = image_rgba[:, :, :3]
+
+
                 # print(f"Success with buffer_rgba: shape {image_rgb.shape}, dtype {image_rgb.dtype}")
             except Exception as e1:
                 print(f"Error with canvas.buffer_rgba(): {e1}. Falling back to tostring_argb/rgb.")
@@ -404,7 +405,7 @@ class PackingEnv(gym.Env):
             return image_rgb
 
         elif effective_mode == 'human':
-            print(self._render_ansi())
+            #print(self._render_ansi())
             return None
 
     
@@ -443,7 +444,9 @@ class PackingEnv(gym.Env):
 
         plt.show()
 
-    def save_gif(self):
+    def save_gif(self, gif_path=None):
+        if gif_path is not None:
+            self.gif_path = gif_path
         """Saves the collected frames as a GIF."""
         if self.frames_for_gif:
             print(f"Saving GIF with {len(self.frames_for_gif)} frames to {self.gif_path}...")
@@ -460,6 +463,18 @@ class PackingEnv(gym.Env):
     def close(self):
         if self.render_mode == "human":
             self.save_gif() # Save GIF at the end of the episode if in human mode
+            
+            final_fig = plt.figure(figsize=(12, 5))
+            final_ax3d = final_fig.add_subplot(121, projection='3d')
+            L, W = self.container_L, self.container_W
+            max_h = np.max(self.container_height_map) if self.container_height_map.any() else 1.0
+            final_ax2d = final_fig.add_subplot(122)
+
+            self._plot_3d_state(final_fig, final_ax3d, self.packed_boxes_info, (self.container_L, self.container_W), "Final 3D Packing State")
+            self._plot_2d_height_map(final_fig, final_ax2d, self.container_height_map, "Final 2D Height Map")
+
+            self.set_axes_equal(final_ax3d)  # <-- Add this line
+            plt.savefig('final_packing_state.png')  # Save the final state as an image
             # self.display_final_state() # Optionally display final plots automatically on close
                                       # It's often better to call this explicitly after the run.
 
