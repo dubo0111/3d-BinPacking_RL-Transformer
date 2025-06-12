@@ -72,17 +72,11 @@ class ValueNetwork(nn.Module):
         # 6. Xavier init for stability (same scheme as original Transformer).
         self._reset_parameters()
 
-    # ------------------------------------------------------------------ #
-    # Weight init                                                        #
-    # ------------------------------------------------------------------ #
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:  # tensors with >=2 dims are weight matrices
                 nn.init.xavier_uniform_(p)
 
-    # ------------------------------------------------------------------ #
-    # Forward pass                                                       #
-    # ------------------------------------------------------------------ #
     def forward(
         self,
         container_state: torch.Tensor,   # (B, 100, 100, 7)

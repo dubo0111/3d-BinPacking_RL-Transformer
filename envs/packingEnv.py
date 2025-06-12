@@ -312,19 +312,13 @@ class PackingEnv(gym.Env):
         elif effective_mode == 'rgb_array':
             # Consistent figsize. DPI can also be set if needed.
             temp_fig = plt.figure(figsize=(8, 6))
-            # temp_fig.set_dpi(100) # Example, if you want to control pixel dimensions
 
             temp_ax3d = temp_fig.add_subplot(111, projection='3d')
             self._plot_3d_state(temp_fig, temp_ax3d, self.packed_boxes_info, (self.container_L, self.container_W))
 
             image_rgb = None # Initialize
 
-            # Method 1: Using buffer_rgba (often more reliable, gives uint8)
             try:
-                #temp_fig.canvas.draw()
-                #width, height = temp_fig.canvas.get_width_height()  # Use actual canvas dimensions
-                #image_rgba_uint8 = np.frombuffer(temp_fig.canvas.buffer_rgba(), dtype=np.uint8).reshape((height, width, 4))
-                #image_rgb = image_rgba_uint8[:, :, :3].copy() # Ensure it's RGB and a copy
                 temp_fig.canvas.draw()
                 width, height = temp_fig.canvas.get_width_height()
                 image_rgba = np.frombuffer(temp_fig.canvas.buffer_rgba(), dtype=np.uint8)
@@ -332,10 +326,8 @@ class PackingEnv(gym.Env):
                 image_rgb = image_rgba[:, :, :3]
 
 
-                # print(f"Success with buffer_rgba: shape {image_rgb.shape}, dtype {image_rgb.dtype}")
             except Exception as e1:
                 print(f"Error with canvas.buffer_rgba(): {e1}. Falling back to tostring_argb/rgb.")
-                # Method 2: Fallback to tostring_argb (suspecting float32 data)
                 try:
                     temp_fig.canvas.draw()
                     width, height = temp_fig.canvas.get_width_height() # Re-get dimensions
@@ -372,12 +364,10 @@ class PackingEnv(gym.Env):
                         # This is the path that caused the ValueError before
                         image_rgba_uint8 = np.frombuffer(image_buffer_argb, dtype=np.uint8).reshape((height, width, 4))
                         image_rgb = image_rgba_uint8[:, :, :3].copy()
-                    # --- END OF MODIFICATION ---
-                    # print(f"Success with tostring_argb: final shape {image_rgb.shape}, dtype {image_rgb.dtype}")
+
 
                 except AttributeError as e_argb_attr:
                     print(f"tostring_argb attribute error: {e_argb_attr}. Trying tostring_rgb.")
-                    # Method 3: Fallback to tostring_rgb (likely uint8 RGB)
                     try:
                         temp_fig.canvas.draw()
                         width, height = temp_fig.canvas.get_width_height()
@@ -473,10 +463,9 @@ class PackingEnv(gym.Env):
             self._plot_3d_state(final_fig, final_ax3d, self.packed_boxes_info, (self.container_L, self.container_W), "Final 3D Packing State")
             self._plot_2d_height_map(final_fig, final_ax2d, self.container_height_map, "Final 2D Height Map")
 
-            self.set_axes_equal(final_ax3d)  # <-- Add this line
+            self.set_axes_equal(final_ax3d)  
             plt.savefig('final_packing_state.png')  # Save the final state as an image
             # self.display_final_state() # Optionally display final plots automatically on close
-                                      # It's often better to call this explicitly after the run.
 
         self.frames_for_gif.clear()
         if self._fig_render:

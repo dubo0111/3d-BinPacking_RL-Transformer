@@ -15,9 +15,7 @@ def collect_trajectory(policy_net, value_net, env, max_steps=250, device=DEVICE_
     container_state = obs['container_state']
     unpacked_boxes_state = env.unpacked_boxes
     trajectory = []
-    # memory = {'container_state':[], 'unpacked_boxes_state':[], 
-    #         'action':[], 'reward':[], 'log_prob_action':[], 
-    #         'value':[], 'next_value':[], 'done':[]}
+
     for _ in range(max_steps):
         container_state_T = torch.tensor(container_state, dtype=torch.float32).unsqueeze(0).to(device)
         unpacked_boxes_state_T = torch.tensor(unpacked_boxes_state, dtype=torch.float32).unsqueeze(0).to(device)
@@ -30,7 +28,6 @@ def collect_trajectory(policy_net, value_net, env, max_steps=250, device=DEVICE_
             "orientation": action[2].item()
         })
 
-        # next_state, reward, done, _, _ = env.step(action)
         
         # Get value of the next state (0 if done)
         next_container_state = observation['container_state']
@@ -114,11 +111,22 @@ def compute_ppo_loss(policy_net, value_net, container_states, unpacked_boxes_sta
     return actor_loss, critic_loss, beta*entropy_loss, total_loss
 
 
-def train_ppo(env, policy_net, value_net, num_epochs=1, max_steps=250, ppo_epochs=27, device=DEVICE_STR, beta=0.01):
+def train_ppo(env_params, policy_net, value_net, num_epochs=1, max_steps=250, ppo_epochs=27, device=DEVICE_STR, beta=0.01):
     # Declaring optimizers for both nets
+    L, W, n = env_params
+    container_dims = (L, W)
     policy_optimizer = optim.Adam(policy_net.parameters(), lr=1e-5)
     value_optimizer = optim.Adam(value_net.parameters(), lr=1e-4)
     for epoch in range(num_epochs):
+        
+        l_samples = [random.randint(L // 10, L // 2) for _ in range(n)]
+        w_samples = [random.randint(W // 10, W // 2) for _ in range(n)]
+        h_samples = [random.randint(min(L, W) // 10, max(L, W) // 2) for _ in range(n)]
+
+        boxes = list(zip(l_samples, w_samples, h_samples))
+
+        env = PackingEnv(container_dims=container_dims, initial_boxes=boxes, render_mode=None)
+        obs, info = env.reset()
         trajectory = collect_trajectory(policy_net, value_net, env, max_steps) 
         states=[(state[0], state[1]) for state in trajectory]
 
@@ -158,7 +166,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_boxes', type=int, default=50, help='Number of boxes to sample')
     parser.add_argument('--epochs', type=int, default=1_000_000, help='Number of PPO training epochs')
     parser.add_argument('--ppo_epochs', type=int, default=17, help='Number of PPO sub-epochs')
-    parser.add_argument('--beta', type=float, default=0.05, help='Entropy regularization term')
+    parser.add_argument('--beta', type=float, default=0.01, help='Entropy regularization term')
     parser.add_argument('--save_path', type=str, default='saved_models', help='Path to save the trained model')
 
     args = parser.parse_args()
@@ -169,25 +177,17 @@ if __name__ == "__main__":
         for key, value in config.items():
             setattr(args, key, value)
 
-    container_dims = (args.length, args.width)
-    L, W = container_dims
-    n = args.num_boxes
-
-    l_samples = [random.randint(L // 10, L // 2) for _ in range(n)]
-    w_samples = [random.randint(W // 10, W // 2) for _ in range(n)]
-    h_samples = [random.randint(min(L, W) // 10, max(L, W) // 2) for _ in range(n)]
-
-    boxes = list(zip(l_samples, w_samples, h_samples))
-
-    env = PackingEnv(container_dims=container_dims, initial_boxes=boxes, render_mode=None)
-    obs, info = env.reset()
+    L = args.length
+    W = args.width
+    num_boxes = args.num_boxes
+    env_params = (L, W, num_boxes)
 
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
 
     policy_net = PolicyNetwork().to(device)
     value_net = ValueNetwork().to(device)
 
-    train_ppo(env, policy_net, value_net,
+    train_ppo(env_params, policy_net, value_net,
               num_epochs=args.epochs,
               ppo_epochs=args.ppo_epochs,
               beta=args.beta,
