@@ -155,7 +155,21 @@ def train_ppo(env_params, policy_net, value_net, num_epochs=1, max_steps=250, pp
             policy_optimizer.step()
             value_optimizer.step()
         total_reward = sum([t[3] for t in trajectory])
-        print(f"Epoch {epoch + 1}/{num_epochs}, Total Reward: {total_reward}, Total Actor Loss: {total_actor_loss}, Total Critic Loss: {total_critic_loss}, Total Entropy Loss: {total_entropy}, Total Loss: {total_loss}")
+
+        # Calculate additional metrics from the final environment state
+        final_info = env._get_info()
+        utilization_rate = final_info['utilization_rate']
+        num_packed_boxes = final_info['num_packed_boxes']
+        total_packed_volume = final_info['total_packed_volume']
+
+        print(f"Epoch {epoch + 1}/{num_epochs}, Total Reward: {total_reward:.2f}, "
+              f"Packed Boxes: {num_packed_boxes}/{len(boxes)}, "
+              f"Utilization Rate: {utilization_rate:.3f}, "
+              f"Total Volume: {total_packed_volume:.1f}, "
+              f"Actor Loss: {total_actor_loss:.4f}, "
+              f"Critic Loss: {total_critic_loss:.4f}, "
+              f"Entropy Loss: {total_entropy:.4f}, "
+              f"Total Loss: {total_loss:.4f}")
     
 
 if __name__ == "__main__":
